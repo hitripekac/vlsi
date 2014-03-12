@@ -1,6 +1,6 @@
 db/
-simulation/
+simulation/modelsim/
 incremental_db/
 output_files/
 
-*.bak
+*.bak*
