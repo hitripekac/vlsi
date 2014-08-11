@@ -46,7 +46,8 @@ begin
 	clock <= not (clock) after 10 ns;    --clock with time period 2 ns
 	
 	mem_proc: process(clock)
-	
+
+	variable memout: integer := 0;
 
    begin        
 		
@@ -63,20 +64,25 @@ begin
 				end loop;
 			end if;
 			
+			memout := 0;
+			
 			for i in 0 to 11 loop
 				if reqest_list(i).count /= -1 then 
 					reqest_list(i).count := reqest_list(i).count - 1;
 					if reqest_list(i).count = 0 then 
 						if reqest_list(i).is_read = '1' then
-							report "hello";
-							data_test <= reqest_list(i).address;
-							data2 <= memory(to_integer(unsigned(reqest_list(i).address)));
+							memout := 1;
+							data_test <= memory(to_integer(unsigned(reqest_list(i).address)));
+							address <= reqest_list(i).address;
 						else
 							memory(to_integer(unsigned(reqest_list(i).address))) := reqest_list(i).data;
 						end if;
 					end if;
 				end if;
 			end loop;
+			
+			if memout = 0 then data_test <= (others => 'Z'); address <= (others => 'Z'); end if;
+			
 			
 		end if;
 	end process;
