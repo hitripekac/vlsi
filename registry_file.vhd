@@ -8,6 +8,7 @@ entity RegisterFile is
 	port(
 		clk          : in  std_logic;
 		rst          : in  std_logic;
+		pc_start     : in  WORD;
 
 		select_out_1 : in  REGISTER_SELECT_ADDRESS;
 		select_out_2 : in  REGISTER_SELECT_ADDRESS;
@@ -34,12 +35,13 @@ architecture RegisterFileImplementation of RegisterFile is
 	signal register_file : REGISTER_FILE_TYPE;
 
 begin
-	process(clk, rst) is
+	process(clk, rst, pc_start) is
 	begin
 		if rst = '1' then
-			for i in 0 to REGISTER_FILE_SIZE loop
+			for i in 0 to REGISTER_FILE_SIZE - 2 loop
 				register_file(i) <= (others => '0');
 			end loop;
+			register_file(15) <= pc_start;
 		elsif rising_edge(clk) then
 			if write_1 = '1' then
 				register_file(to_integer(unsigned(select_in_1))) <= data_in_1;

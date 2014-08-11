@@ -19,8 +19,8 @@ end entity JumpCalc;
 
 architecture JumpCalcRTL of JumpCalc is
 begin
-	pc_out <= std_logic_vector(signed(pc_in) + signed(offset));
+	pc_out <= std_logic_vector(signed(pc_in) + signed(offset) + 1);
 
-	do_jump <= '1' when (cond = "00" and z_in = '1') else '1' when (cond = "01" and n_in = '0' and o_in = '0') else '1' when (cond = "10" and n_in = '0' and c_in = '0') else '1' when cond = "11" else '0';
+	do_jump <= '1' when (cond = "00" and z_in = '1') else '1' when (cond = "01" and n_in = '0' and o_in = '0') else '1' when (cond = "10" and n_in = '0' and c_in = '0') else '1' when (cond = "11") else '0';
 
 end architecture JumpCalcRTL;

@@ -6,13 +6,16 @@ use work.customprocessor.all;
 
 entity Cache is
 	port(
-		clk          : in    std_logic; -- clock
-		address      : in    MEMORY_ADDRESS; -- address of the requested location
-		miss_address : out   MEMORY_ADDRESS;
-		data         : inout WORD;
-		is_read      : in    std_logic;
-		is_write     : in    std_logic;
-		cache_hit    : out   std_logic
+		clk          : in  std_logic;   -- clock
+		rst          : in  std_logic;
+		address      : in  MEMORY_ADDRESS; -- address of the requested location
+		miss_address : out MEMORY_ADDRESS;
+		data_in      : inout  WORD;
+		data_out     : inout WORD;
+		is_read      : in  std_logic;
+		is_write     : in  std_logic;
+		is_from_mem  : in  std_logic;
+		cache_hit    : out std_logic
 	);
 end Cache;
 
@@ -27,32 +30,44 @@ architecture CacheImplementation of Cache is
 	signal dirty       : DIRTYTABLE;
 	signal valid       : VALIDTABLE;
 
-	variable offset              : integer;
-	variable segment             : std_logic_vector(22 downto 0);
 	signal miss_address_internal : MEMORY_ADDRESS;
 begin
 	miss_address <= miss_address_internal;
-	process(clk, is_read, is_write)
+	process(clk, is_read, is_write, rst)
+		variable offset         : integer;
 		variable cache_location : integer;
+		variable segment        : std_logic_vector(22 downto 0);
 	begin
-		if rising_edge(clk) and ((is_read = '1') or (is_write = '1')) then
+		if rst = '1' then
+			for i in 0 to CACHE_TABLE_SIZE - 1 loop
+				valid(i)       <= '0';
+				cache_table(i) <= (others => '0');
+			end loop;
+		elsif rising_edge(clk) and ((is_read = '1') or (is_write = '1')) then
 			offset         := to_integer(unsigned(address(1 downto 0)));
 			segment        := address(31 downto 9);
 			cache_hit      <= '0';
 			cache_location := to_integer(unsigned(address(8 downto 2)));
-			if (valid(cache_location) = '1') then
+			if (valid(cache_location) = '1' or is_from_mem = '1') then
 				if (cache_table(cache_location) = segment) then
 					cache_hit <= '1';
 					if is_read = '1' then
-						data <= hwcache(cache_location, offset);
+						data_out <= hwcache(cache_location, offset);
 					else
-						hwcache(cache_location, offset) <= data;
-						dirty(cache_location)           <= '1';
+						dirty(cache_location) <= '1';
+						if is_from_mem = '1' then
+							valid(cache_location) <= '1';
+							dirty(cache_location) <= '0';
+						end if;
+						hwcache(cache_location, offset) <= data_in;
 					end if;
 				else
 					cache_hit             <= '0';
-					miss_address_internal <= address(31 downto 2) & "0000";
+					miss_address_internal <= address(31 downto 2) & "00";
 				end if;
+			else
+				cache_hit             <= '0';
+				miss_address_internal <= address(31 downto 2) & "00";
 			end if;
 		end if;
 	end process;

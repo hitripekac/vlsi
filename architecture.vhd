@@ -14,16 +14,16 @@ package CustomProcessor is
 	subtype MEMORY_ADDRESS is WORD;
 	subtype REGISTER_SELECT_ADDRESS is std_logic_vector(REGISTER_FILE_ADDRESS_SIZE - 1 downto 0);
 
-	type CPU_STATE is (CPU_RESET, INSTRUCTION_CACHE_STALL, DATA_CACHE_STALL, NORMAL);
-	type MEM_STATE is (MEM_START, WAIT_CONTROL, MEM_STOP);
+	type CPU_STATE is (CPU_RESET, INSTRUCTION_CACHE_STALL, DATA_CACHE_STALL, NORMAL, HALT);
 
 	constant CACHE_BLOCK_ADDRESS_SIZE  : integer := 2;
 	constant CACHE_BLOCK_SIZE_IN_WORDS : integer := 2 ** CACHE_BLOCK_ADDRESS_SIZE;
 
 	constant CACHE_SIZE       : integer := 2048;
-	constant CACHE_TABLE_SIZE : integer := CACHE_SIZE / 8;
+	constant CACHE_TABLE_SIZE : integer := CACHE_SIZE / 16;
 
 	subtype ALU_OPERATION_SELECT is std_logic_vector(3 downto 0);
+
 
 end package CustomProcessor;
 

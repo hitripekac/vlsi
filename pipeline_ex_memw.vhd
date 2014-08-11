@@ -45,6 +45,7 @@ begin
 			instruction <= (others => '0');
 			alu_result  <= (others => '0');
 			swap_result <= (others => '0');
+			do_jump     <= '0';
 		elsif (rising_edge(clk) and read = '1') then
 			do_jump     <= do_jump_in;
 			pc          <= pc_in;

@@ -6,18 +6,17 @@ use work.customprocessor.all;
 
 entity ALU is
 	port(
-		clk            : in  std_logic; -- clock
-		first, second  : in  WORD;      -- input data
-		operation      : in  std_logic_vector(3 downto 0); -- operation
-		output         : out WORD;      -- output
-		carry          : out std_logic; -- carry flag
-		zero           : out std_logic; -- zero flag
-		negative       : out std_logic; -- negative flag
-		overflow       : out std_logic; -- overflow flag
-		s              : in  std_logic;
-		pass_second_op : in  std_logic;
-		instruction    : in  std_logic_vector(2 downto 0)
-	);
+		clk           : in  std_logic;  -- clock
+		rst           : in  std_logic;
+		first, second : in  WORD;       -- input data
+		operation     : in  std_logic_vector(3 downto 0); -- operation
+		output        : out WORD;       -- output
+		carry         : out std_logic;  -- carry flag
+		zero          : out std_logic;  -- zero flag
+		negative      : out std_logic;  -- negative flag
+		overflow      : out std_logic;  -- overflow flag
+		instruction   : in  WORD;
+		save_result   : in  std_logic);
 end ALU;
 
 architecture ALUImplementation of ALU is
@@ -34,11 +33,15 @@ begin
 	negative <= n;
 	overflow <= o;
 
-	process(clk)
+	process(clk, rst)
 	begin
-		if (rising_edge(clk)) then
-			if pass_second_op = '1' then
+		if rst = '1' then
+			result <= (others => '0');
+		elsif (rising_edge(clk)) then
+			if instruction(31 downto 25) = "0001101" or instruction(31 downto 25) = "0011101" or instruction(31 downto 25) = "0001000" or instruction(31 downto 25) = "0111101" then
 				result <= second_operand;
+			elsif instruction(31 downto 29) = "010" then
+				result <= first_operand;
 			else
 				case operation is
 					when "0100" =>      -- add
@@ -62,13 +65,33 @@ begin
 		end if;
 	end process;
 
-	process(result, s, instruction)
+	process(rst, result, instruction, save_result)
 	begin
-		if instruction = "000" or instruction = "001" or instruction = "011" then
-			z <= '1' when result = 0 else '0';
-			o <= '1' when result(32) /= result(31) and s = '1' else '0';
-			n <= result(31);
-			c <= result(32) when s = '0' else '0';
+		if rst = '1' then
+			c <= '0';
+			n <= '0';
+			o <= '0';
+			z <= '0';
+		elsif (instruction(31 downto 29) = "000" and not (instruction(28 downto 25) = "1101" or instruction(28 downto 25) = "1000")) or (instruction(31 downto 29) = "001" and not instruction(28 downto 25) = "1101") or (instruction(31 downto 29) = "011" and not instruction(28 downto 25
+			) = "1101") then
+			if save_result = '1' then
+				if result = 0 then
+					z <= '1';
+				else
+					z <= '0';
+				end if;
+				if (result(32) /= result(31)) and (instruction(16) = '1') then
+					o <= '1';
+				else
+					o <= '0';
+				end if;
+				n <= result(31);
+				if instruction(16) = '0' then
+					c <= result(32);
+				else
+					c <= '0';
+				end if;
+			end if;
 		end if;
 
 	end process;
