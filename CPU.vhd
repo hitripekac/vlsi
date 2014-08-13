@@ -28,18 +28,20 @@ architecture CPUImplemetation of CPU is
 
 	component Cache is
 		port(
-			clk          : in    std_logic; -- clock
+			clk          : in  std_logic; -- clock
 			rst          : std_logic;
-			address      : in    MEMORY_ADDRESS; -- address of the requested location
-			miss_address : out   MEMORY_ADDRESS;
-			data_in      : inout WORD;
-			data_out     : inout WORD;
-			is_read      : in    std_logic;
-			is_write     : in    std_logic;
-			is_from_mem  : in    std_logic;
-			cache_hit    : out   std_logic;
-			write_back   : out   std_logic;
-			read0write1  : out   std_logic
+			address      : in  MEMORY_ADDRESS; -- address of the requested location
+			miss_address : out MEMORY_ADDRESS;
+			data_in      : in  WORD;
+			data_out     : out WORD;
+			mem_data_in  : in  WORD;
+			mem_address  : in  MEMORY_ADDRESS;
+			is_read      : in  std_logic;
+			is_write     : in  std_logic;
+			is_from_mem  : in  std_logic;
+			cache_hit    : out std_logic;
+			write_back   : out std_logic;
+			read0write1  : out std_logic
 		);
 	end component Cache;
 
@@ -332,6 +334,8 @@ begin
 			     miss_address => instruction_cache_miss_address,
 			     data_in      => instruction_cache_data_in,
 			     data_out     => instruction_cache_data_out,
+			     mem_data_in  => data,
+			     mem_address  => address,
 			     is_read      => instruction_cache_is_read,
 			     is_write     => instruction_cache_is_write,
 			     is_from_mem  => instruction_cache_is_from_mem,
@@ -346,6 +350,8 @@ begin
 			     miss_address => data_cache_miss_address,
 			     data_in      => data_cache_data_in, --wb_mem_address_out,
 			     data_out     => data_cache_data_out,
+			     mem_data_in  => data,
+			     mem_address  => address,
 			     is_read      => data_cache_is_read,
 			     is_write     => data_cache_is_write,
 			     is_from_mem  => data_cache_is_from_mem,
@@ -531,7 +537,6 @@ begin
 		variable count              : integer := 0;
 		variable cache_miss_address : MEMORY_ADDRESS;
 		variable cache_was_write    : integer := 0;
-		variable write_back         : integer := 0;
 		variable current            : integer := 0;
 		variable address_segment    : unsigned(WORD_IN_BITS - 1 downto CACHE_BLOCK_ADDRESS_SIZE);
 		variable address_offset     : unsigned(CACHE_BLOCK_ADDRESS_SIZE - 1 downto 0);
@@ -539,6 +544,7 @@ begin
 	begin
 		if rising_edge(clk) then
 			if cpu_state = NORMAL then
+				instruction_cache_data_in     <= (others => '0');
 				data_cache_data_in            <= wb_mem_data_out;
 				instruction_cache_address     <= reg_file_pc_out;
 				data_cache_address            <= data_cache_address_multiplexer_out;
@@ -551,7 +557,7 @@ begin
 					memr_ex_read                <= '0';
 					wb_read                     <= '0';
 					mem_multiplexer_from_mem_in <= '0';
-					pc_write                    <= '1';
+					pc_write                    <= '0';
 					data_cache_read_write_in    <= '1';
 					data_cache_is_read          <= '0';
 					alu_save_result_in          <= '0';
@@ -560,7 +566,7 @@ begin
 					else
 						data_cache_is_write <= '0';
 					end if;
-
+					instruction_cache_is_read <= '0';
 				elsif current_pipe_clock = 1 then
 					pc_write                  <= '0';
 					instruction_cache_is_read <= '1';
@@ -572,6 +578,9 @@ begin
 						data_cache_is_read <= '0';
 					end if;
 				else
+					instruction_cache_is_read <= '0';
+					if instruction_cache_hit = '1' then
+					pc_write <= '1';
 					ifid_read <= '1';
 					if count > 0 then
 						id_memr_read <= '1';
@@ -585,47 +594,40 @@ begin
 					if count < 3 then
 						count := count + 1;
 					end if;
-					instruction_cache_is_read <= '0';
 					if id_memr_instruction_out(31 downto 28) = "0101" or id_memr_instruction_out(31 downto 29) = "011" then
 						mem_multiplexer_from_mem_in <= '1';
 					else
 						mem_multiplexer_from_mem_in <= '0';
 					end if;
 					alu_save_result_in <= '1';
-
+					end if;
 				end if;
+				current := 0;
 				current_pipe_clock := current_pipe_clock + 1;
 				if current_pipe_clock = 3 then
 					current_pipe_clock := 0;
 				end if;
 
 			elsif ((cpu_state = INSTRUCTION_CACHE_STALL) or (cpu_state = DATA_CACHE_STALL)) then
+				ifid_read <= '0';
+				pc_write <= '0';
+				current_pipe_clock := 2;
 				if current = 0 then
 					if cpu_state = INSTRUCTION_CACHE_STALL then
 						address_segment    := unsigned(instruction_cache_miss_address(WORD_IN_BITS - 1 downto CACHE_BLOCK_ADDRESS_SIZE));
 						cache_miss_address := instruction_cache_miss_address;
-						if instruction_cache_write_back = '1' then
-							write_back := 1;
-						else
-							write_back := 0;
-						end if;
-						if instruction_cache_was_write = '0' then
-							cache_was_write := 0;
-						else
+						if instruction_cache_was_write = '1' then
 							cache_was_write := 1;
+						else
+							cache_was_write := 0;
 						end if;
 					else
 						address_segment    := unsigned(data_cache_miss_address(WORD_IN_BITS - 1 downto CACHE_BLOCK_ADDRESS_SIZE));
 						cache_miss_address := data_cache_miss_address;
-						if data_cache_write_back = '1' then
-							write_back := 1;
-						else
-							write_back := 0;
-						end if;
-						if data_cache_was_write = '0' then
-							cache_was_write := 0;
-						else
+						if data_cache_was_write = '1' then
 							cache_was_write := 1;
+						else
+							cache_was_write := 0;
 						end if;
 					end if;
 					address_offset := "00";
@@ -636,40 +638,43 @@ begin
 					address        <= std_logic_vector(address_segment) & std_logic_vector(address_offset);
 					address_offset := address_offset + 1;
 					current        := current + 1;
-					if current = 4 and write_back = 1 then
+					if current = 4 then
 						address_offset := "00";
-						if cpu_state = INSTRUCTION_CACHE_STALL then
+						if cpu_state = INSTRUCTION_CACHE_STALL and instruction_cache_write_back = '1' then
 							instruction_cache_address <= std_logic_vector(address_segment) & std_logic_vector(address_offset);
 							instruction_cache_is_read <= '1';
-						else
+						elsif cpu_state = DATA_CACHE_STALL and data_cache_write_back = '1' then
 							data_cache_address <= std_logic_vector(address_segment) & std_logic_vector(address_offset);
 							data_cache_is_read <= '1';
 						end if;
 					end if;
 				elsif current < 8 then
-					is_read        <= '0';
-					is_write       <= '1';
+					is_read <= '0';
+					if (cpu_state = INSTRUCTION_CACHE_STALL and instruction_cache_write_back = '1') or (cpu_state = DATA_CACHE_STALL and data_cache_write_back = '1') then
+						is_write <= '1';
+					else
+						is_write <= '0';
+					end if;
 					address        <= std_logic_vector(address_segment) & std_logic_vector(address_offset);
 					data           <= (others => 'Z');
 					address_offset := address_offset + 1;
 					current        := current + 1;
-					if write_back = 1 then
-						if cpu_state = INSTRUCTION_CACHE_STALL then
-							if current < 8 then
-								instruction_cache_address  <= std_logic_vector(address_segment) & std_logic_vector(address_offset);
-								instruction_cache_is_read  <= '1';
-								instruction_cache_is_write <= '0';
-							end if;
-							data <= instruction_cache_data_out;
-						else
-							if current < 8 then
-								data_cache_address  <= std_logic_vector(address_segment) & std_logic_vector(address_offset);
-								data_cache_is_read  <= '1';
-								data_cache_is_write <= '0';
-							end if;
-							data <= data_cache_data_out;
+					if cpu_state = INSTRUCTION_CACHE_STALL and instruction_cache_write_back = '1' then
+						if current < 8 then
+							instruction_cache_address  <= std_logic_vector(address_segment) & std_logic_vector(address_offset);
+							instruction_cache_is_read  <= '1';
+							instruction_cache_is_write <= '0';
 						end if;
+						data <= instruction_cache_data_out;
+					elsif cpu_state = DATA_CACHE_STALL and data_cache_write_back = '1' then
+						if current < 8 then
+							data_cache_address  <= std_logic_vector(address_segment) & std_logic_vector(address_offset);
+							data_cache_is_read  <= '1';
+							data_cache_is_write <= '0';
+						end if;
+						data <= data_cache_data_out;
 					end if;
+
 				elsif current <= 13 then
 					is_read  <= '0';
 					is_write <= '0';
@@ -683,19 +688,16 @@ begin
 					address  <= (others => 'Z');
 					current  := current + 1;
 					if cpu_state = INSTRUCTION_CACHE_STALL then
-						instruction_cache_address     <= address;
 						instruction_cache_is_read     <= '0';
 						instruction_cache_is_write    <= '1';
 						instruction_cache_is_from_mem <= '1';
-						instruction_cache_data_in     <= data;
 					else
-						data_cache_address     <= address;
 						data_cache_is_read     <= '0';
 						data_cache_is_write    <= '1';
 						data_cache_is_from_mem <= '1';
-						data_cache_data_in     <= data;
 					end if;
-				else
+				elsif current = 18 then
+					current := current + 1;
 					if cpu_state = INSTRUCTION_CACHE_STALL then
 						if cache_was_write = 0 then
 							instruction_cache_is_read  <= '1';
@@ -717,11 +719,13 @@ begin
 						data_cache_address     <= cache_miss_address;
 						data_cache_is_from_mem <= '0';
 					end if;
+				elsif current = 19 then
+					instruction_cache_is_read  <= '0';
+					instruction_cache_is_write <= '0';
+					data_cache_is_read  <= '0';
+					data_cache_is_write <= '0';
 				end if;
-			else
-				current := 0;
 			end if;
-
 		end if;
 	end process cache_miss_process;
 end architecture CPUImplemetation;
