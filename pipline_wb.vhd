@@ -92,9 +92,9 @@ begin
 				when "000" => data_write_1 <= '1';
 				when "001" => data_write_1 <= '1';
 				when "010" => if instruction(28) = '1' then
-						data_write_1 <= '1';
+						data_write_2 <= '1';
 					else
-						data_write_1 <= '0';
+						data_write_2 <= '0';
 					end if;
 				when "011" => data_write_1 <= '1';
 				when "100" => if (instruction(26) = '1') then

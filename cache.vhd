@@ -36,14 +36,11 @@ architecture CacheImplementation of Cache is
 	signal readwrite             : std_logic;
 	signal miss_address_internal : MEMORY_ADDRESS;
 	signal writeback             : std_logic;
-begin
+begin 
 	miss_address <= miss_address_internal;
 	read0write1  <= readwrite;
 	write_back   <= writeback;
 	process(clk, is_read, is_write, rst)
-		variable offset         : integer;
-		variable cache_location : integer;
-		variable segment        : std_logic_vector(22 downto 0);
 	begin
 		if rst = '1' then
 			for i in 0 to CACHE_TABLE_SIZE - 1 loop
@@ -51,31 +48,24 @@ begin
 				cache_table(i) <= (others => '0');
 			end loop;
 		elsif rising_edge(clk) and ((is_read = '1') or (is_write = '1')) then
-			offset         := to_integer(unsigned(address(1 downto 0))); -- ovo pre nije bilo, mislim, pa ne moze da spoji ove ifove u jedan veliki
-			segment        := address(31 downto 9);
-			cache_location := to_integer(unsigned(address(8 downto 2))); -- do ovde
-			-- inace mislim da je ovde problem sto ima vise ugnezdjenih ifova koji nisu sami po sebi prazni,
-			-- ako se ovo malo refaktorise mislim da bi sinteza bila brza
 			if is_from_mem = '1' and is_write = '1' then
 				cache_hit                       <= '0';
-				cache_location                  := to_integer(unsigned(mem_address(8 downto 2)));
-				offset         					:= to_integer(unsigned(mem_address(1 downto 0)));
-				valid(cache_location)           <= '1';
-				dirty(cache_location)           <= '0';
-				cache_table(cache_location)     <= mem_address(31 downto 9);
-				hwcache(cache_location, offset) <= mem_data_in;
-			elsif valid(cache_location) = '1' then
-				if (cache_table(cache_location) = segment) then
+				valid(to_integer(unsigned(mem_address(8 downto 2))))           <= '1';
+				dirty(to_integer(unsigned(mem_address(8 downto 2))))           <= '0';
+				cache_table(to_integer(unsigned(mem_address(8 downto 2))))     <= mem_address(31 downto 9);
+				hwcache(to_integer(unsigned(mem_address(8 downto 2))), to_integer(unsigned(mem_address(1 downto 0)))) <= mem_data_in;
+			elsif valid(to_integer(unsigned(address(8 downto 2)))) = '1' then
+				if (cache_table(to_integer(unsigned(address(8 downto 2)))) = address(31 downto 9)) then
 					cache_hit <= '1';
 					if is_read = '1' then
-						data_out <= hwcache(cache_location, offset);
+						data_out <= hwcache(to_integer(unsigned(address(8 downto 2))), to_integer(unsigned(address(1 downto 0))));
 					else
-						dirty(cache_location)           <= '1';
-						hwcache(cache_location, offset) <= data_in;
+						dirty(to_integer(unsigned(address(8 downto 2))))           <= '1';
+						hwcache(to_integer(unsigned(address(8 downto 2))), to_integer(unsigned(address(1 downto 0)))) <= data_in;
 					end if;
 				else
 					cache_hit <= '0';
-					writeback <= dirty(cache_location);
+					writeback <= dirty(to_integer(unsigned(address(8 downto 2))));
 					miss_address_internal <= address;
 					readwrite <= is_write;
 				end if;

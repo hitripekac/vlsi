@@ -185,6 +185,7 @@ architecture CPUImplemetation of CPU is
 			z_in    : in  std_logic;
 			o_in    : in  std_logic;
 			n_in    : in  std_logic;
+			brinstr : in  std_logic_vector(2 downto 0);
 			cond    : in  std_logic_vector(1 downto 0)
 		);
 	end component JumpCalc;
@@ -464,6 +465,7 @@ begin
 			     z_in    => jump_calc_z_in,
 			     o_in    => jump_calc_o_in,
 			     n_in    => jump_calc_n_in,
+			     brinstr => memr_ex_instruction_out(31 downto 29),
 			     cond    => memr_ex_instruction_out(28 downto 27));
 
 	register_file : RegisterFile
@@ -521,7 +523,7 @@ begin
 	begin
 		if rst = '1' then
 			cpu_state <= CPU_RESET;
-		elsif rst = '0' then
+		else
 			cpu_state <= NORMAL;
 			if instruction_cache_hit = '0' then
 				cpu_state <= INSTRUCTION_CACHE_STALL;
@@ -572,14 +574,16 @@ begin
 					instruction_cache_is_read <= '1';
 					data_cache_read_write_in  <= '0';
 					data_cache_is_write       <= '0';
-					if id_memr_instruction_out(31 downto 28) = "0101" or id_memr_instruction_out(31 downto 29) = "011" then
+					if (id_memr_instruction_out(31 downto 28) = "0101" or id_memr_instruction_out(31 downto 29) = "011") and data_cache_is_read = '0' then
 						data_cache_is_read <= '1';
+						current_pipe_clock := current_pipe_clock - 1;
 					else
 						data_cache_is_read <= '0';
 					end if;
 				else
 					instruction_cache_is_read <= '0';
-					if instruction_cache_hit = '1' then
+					data_cache_is_read <= '0';
+					if instruction_cache_hit = '1' and data_cache_hit /= '0' then
 					pc_write <= '1';
 					ifid_read <= '1';
 					if count > 0 then
@@ -612,6 +616,7 @@ begin
 				ifid_read <= '0';
 				pc_write <= '0';
 				current_pipe_clock := 2;
+				if (current > 18) then current := 0; end if;
 				if current = 0 then
 					if cpu_state = INSTRUCTION_CACHE_STALL then
 						address_segment    := unsigned(instruction_cache_miss_address(WORD_IN_BITS - 1 downto CACHE_BLOCK_ADDRESS_SIZE));
