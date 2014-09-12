@@ -18,6 +18,8 @@ entity IDMEMRRegisters is
 		op1_out         : out WORD;
 		op2_out         : out WORD;
 
+		nop             : in  std_logic;
+
 		read            : in  std_logic
 	);
 end IDMEMRRegisters;
@@ -33,13 +35,18 @@ begin
 	op1_out         <= op1;
 	op2_out         <= op2;
 
-	process(clk, rst, read) is
+	process(clk, rst, read, nop) is
 	begin
 		if rst = '1' then
 			pc          <= (others => '0');
 			instruction <= (others => '0');
 			op1         <= (others => '0');
 			op2         <= (others => '0');
+		elsif (rising_edge(clk) and nop = '1') then
+			pc          <= pc_in;
+			instruction <= "11100000000000000000000000000000";
+			op1         <= op1_in;
+			op2         <= op2_in;
 		elsif (rising_edge(clk) and read = '1') then
 			pc          <= pc_in;
 			instruction <= instruction_in;
